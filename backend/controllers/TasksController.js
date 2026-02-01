@@ -1,109 +1,124 @@
 const Task = require("../models/Tasks");
+const fs = require("fs");
+const path = require("path");
 
-// Create task
+/* CREATE */
 exports.createTask = async (req, res) => {
   try {
+    const attachments = (req.files?.files || []).map(f => ({
+      fileName: f.originalname,
+      fileUrl: `/uploads/files/${f.filename}`,
+      fileType: f.mimetype
+    }));
+
+    const recordings = (req.files?.audio || []).map(a => ({
+      type: "audio",
+      fileUrl: `/uploads/audio/${a.filename}`
+    }));
+
     const task = await Task.create({
       title: req.body.title,
       description: req.body.description || "",
-      userId: req.user.id,
+      isCompleted: req.body.isCompleted === "true",
+      userId: req.user.id || req.user._id,
       date: new Date(),
+      attachments,
+      recordings
     });
 
     res.status(201).json(task);
   } catch (err) {
-    res.status(500).json("Error creating task");
+    console.error(err);
+    res.status(500).json("Create failed");
   }
 };
 
-// Get today's tasks
+/* GET */
 exports.getTodayTasks = async (req, res) => {
-  try {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-
-    const tasks = await Task.find({
-      userId: req.user.id,
-      date: { $gte: start, $lte: end },
-    });
-
-    res.status(200).json(tasks);
-  } catch (err) {
-    res.status(500).json("Failed to fetch tasks");
-  }
+  const tasks = await Task.find({ userId: req.user.id || req.user._id });
+  res.json(tasks);
 };
 
-// Update task
+/* GET ONE */
+exports.getTaskById = async (req, res) => {
+  const task = await Task.findOne({
+    _id: req.params.id,
+    userId: req.user.id || req.user._id
+  });
+  if (!task) return res.status(404).json("Not found");
+  res.json(task);
+};
+
+/* UPDATE */
 exports.UpdateData = async (req, res) => {
   try {
-    const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      req.body,
-      { new: true }
+    const task = await Task.findById(req.params.id);
+    if (!task) return res.status(404).json("Not found");
+
+    task.title = req.body.title;
+    task.description = req.body.description || "";
+    task.isCompleted = req.body.isCompleted === "true";
+
+    const parse = v => {
+      try { return JSON.parse(v); } catch { return []; }
+    };
+
+    const removedFiles = parse(req.body.removedFiles);
+    const removedRecordings = parse(req.body.removedRecordings);
+
+    removedFiles.forEach(f => {
+      if (!f?.fileUrl) return;
+      const p = path.join(__dirname, "..", f.fileUrl);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    });
+
+    removedRecordings.forEach(r => {
+      if (!r?.fileUrl) return;
+      const p = path.join(__dirname, "..", r.fileUrl);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    });
+
+    task.attachments = task.attachments.filter(
+      f => !removedFiles.some(r => r.fileUrl === f.fileUrl)
     );
 
+    task.recordings = task.recordings.filter(
+      r => !removedRecordings.some(rr => rr.fileUrl === r.fileUrl)
+    );
+
+    (req.files?.files || []).forEach(f =>
+      task.attachments.push({
+        fileName: f.originalname,
+        fileUrl: `/uploads/files/${f.filename}`,
+        fileType: f.mimetype
+      })
+    );
+
+    (req.files?.audio || []).forEach(a =>
+      task.recordings.push({
+        type: "audio",
+        fileUrl: `/uploads/audio/${a.filename}`
+      })
+    );
+
+    await task.save();
     res.json(task);
-  } catch (err) {
+  } catch (e) {
+    console.error(e);
     res.status(500).json("Update failed");
   }
 };
 
-// Mark completed
-// Mark completed (TOGGLE)
+/* TOGGLE */
 exports.MarkCompleted = async (req, res) => {
-  try {
-    const task = await Task.findOne({
-      _id: req.params.id,
-      userId: req.user.id
-    });
-
-    if (!task) {
-      return res.status(404).json("Task not found");
-    }
-
-    //  REAL TOGGLE
-    task.isCompleted = !task.isCompleted;
-
-    await task.save();
-
-    res.status(200).json(task);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json("Failed to toggle task");
-  }
+  const task = await Task.findById(req.params.id);
+  task.isCompleted = !task.isCompleted;
+  await task.save();
+  res.json(task);
 };
 
-
-// Delete task
+/* DELETE */
 exports.DeleteData = async (req, res) => {
-  try {
-    await Task.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.user.id,
-    });
-
-    res.json({ message: "Task deleted" });
-  } catch (err) {
-    res.status(500).json("Delete failed");
-  }
-};
-// Get single task (details page)
-exports.getTaskById = async (req, res) => {
-  try {
-    const task = await Task.findOne({
-      _id: req.params.id,
-      userId: req.user.id
-    });
-
-    if (!task) {
-      return res.status(404).json("Task not found");
-    }
-
-    res.status(200).json(task);
-  } catch (err) {
-    res.status(500).json("Failed to fetch task");
-  }
+  await Task.findByIdAndDelete(req.params.id);
+  res.json({ message: "Deleted" });
 };

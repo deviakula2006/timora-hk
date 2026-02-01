@@ -1,0 +1,1570 @@
+frontend :
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import Dashboard from "./pages/Dashboard";
+import ViewAllTasks from "./pages/ViewAllTasks";
+import TaskDetails from "./pages/TaskDetails";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/tasks" element={<ViewAllTasks />} />
+        <Route path="/tasks/:id" element={<TaskDetails />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+
+
+components :
+
+import { useRef, useState, useEffect } from "react";
+
+function AddTaskModal({ onClose, onSave, initialData }) {
+  // -------- FORM STATE --------
+  const [title, setTitle] = useState(initialData?.title || "");
+  const [description, setDescription] = useState(initialData?.description || "");
+  const [isCompleted, setIsCompleted] = useState(initialData?.isCompleted || false);
+
+  // -------- EXISTING DATA (EDIT MODE) --------
+  const [existingFiles, setExistingFiles] = useState(initialData?.files || []);
+  const [existingAudioUrl, setExistingAudioUrl] = useState(initialData?.audioUrl || null);
+
+  // -------- NEW DATA --------
+  const [files, setFiles] = useState([]);
+  const [audioBlob, setAudioBlob] = useState(null);
+
+  // -------- AUDIO STATE --------
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioURL, setAudioURL] = useState(null);
+
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const streamRef = useRef(null);
+
+  // -------- REMOVE HELPERS --------
+  const removeFile = (index) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingFile = (index) => {
+    setExistingFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeAudio = () => {
+    if (audioURL?.startsWith("blob:")) {
+      URL.revokeObjectURL(audioURL);
+    }
+    setAudioBlob(null);
+    setAudioURL(null);
+  };
+
+  const removeExistingAudio = () => {
+    setExistingAudioUrl(null);
+  };
+
+  // -------- START RECORDING --------
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        blob.name = "voice-note.webm";
+        setAudioBlob(blob);
+        setAudioURL(URL.createObjectURL(blob));
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch {
+      alert("Microphone permission denied");
+    }
+  };
+
+  // -------- STOP RECORDING --------
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+
+    setIsRecording(false);
+  };
+
+  // -------- SAVE --------
+  const handleSave = () => {
+    if (!title.trim()) return alert("Task title required");
+
+    stopRecording();
+
+    onSave({
+      title,
+      description,
+      isCompleted,
+      files,                 // new files
+      audioBlob,             // new audio
+      existingFiles,         // remaining old files
+      existingAudioUrl       // remaining old audio
+    });
+  };
+
+  // cleanup blob url
+  useEffect(() => {
+    return () => {
+      if (audioURL?.startsWith("blob:")) {
+        URL.revokeObjectURL(audioURL);
+      }
+    };
+  }, [audioURL]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
+      <div className="bg-white w-full max-w-md rounded-xl p-6">
+
+        <h2 className="text-xl font-bold text-purple-700 mb-4">
+          {initialData ? "Edit Task" : "Add New Task"}
+        </h2>
+
+        <input
+          className="w-full border p-3 rounded mb-3"
+          placeholder="Task title *"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+
+        <textarea
+          className="w-full border p-3 rounded mb-3"
+          placeholder="Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+
+        {/* EXISTING FILES */}
+        {existingFiles.length > 0 && (
+          <div className="mb-3">
+            <p className="text-sm font-medium mb-1">Attached files</p>
+            <ul className="space-y-1">
+              {existingFiles.map((file, index) => (
+                <li
+                  key={index}
+                  className="flex justify-between items-center bg-gray-100 px-2 py-1 rounded text-sm"
+                >
+                  <span className="truncate">{file.split("/").pop()}</span>
+                  <button
+                    onClick={() => removeExistingFile(index)}
+                    className="text-red-500 text-xs"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* FILE UPLOAD */}
+        <input
+          type="file"
+          multiple
+          onChange={(e) => setFiles([...files, ...e.target.files])}
+          className="mb-4"
+        />
+
+        {/* NEW FILES PREVIEW */}
+        {files.length > 0 && (
+          <ul className="mb-4 space-y-1">
+            {files.map((file, index) => (
+              <li
+                key={index}
+                className="flex justify-between items-center bg-gray-100 px-2 py-1 rounded text-sm"
+              >
+                <span className="truncate">{file.name}</span>
+                <button
+                  onClick={() => removeFile(index)}
+                  className="text-red-500 text-xs"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* EXISTING AUDIO */}
+        {existingAudioUrl && !audioBlob && (
+          <div className="mb-4 flex items-center gap-3">
+            <audio controls src={existingAudioUrl} className="flex-1" />
+            <button
+              onClick={removeExistingAudio}
+              className="text-red-500 text-sm"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+
+        {/* RECORDING */}
+        <div className="mb-4">
+          {!isRecording ? (
+            <button
+              onClick={startRecording}
+              className="bg-purple-600 text-white px-4 py-2 rounded"
+            >
+              🎙 Start Recording
+            </button>
+          ) : (
+            <button
+              onClick={stopRecording}
+              className="bg-red-500 text-white px-4 py-2 rounded"
+            >
+              ⏹ Stop Recording
+            </button>
+          )}
+
+          {audioURL && (
+            <div className="mt-3 flex items-center gap-3">
+              <audio controls src={audioURL} className="flex-1" />
+              <button
+                onClick={removeAudio}
+                className="text-red-500 text-sm"
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* STATUS */}
+        <div className="flex items-center gap-3 mb-5">
+          <span>Todo</span>
+          <input
+            type="checkbox"
+            checked={isCompleted}
+            onChange={() => setIsCompleted(!isCompleted)}
+          />
+          <span>Completed</span>
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded">
+            Cancel
+          </button>
+          <button onClick={handleSave} className="px-4 py-2 bg-purple-600 text-white rounded">
+            Save
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+export default AddTaskModal;
+
+
+import { useNavigate } from "react-router-dom";
+
+function Header({ title = "Timora", showBack = true }) {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/");
+  };
+
+  return (
+    <div className="flex items-center justify-between mb-6">
+      {/* BACK */}
+      {showBack ? (
+        <button
+          onClick={() => navigate(-1)}
+          className="text-xl font-bold text-purple-600"
+        >
+          ←
+        </button>
+      ) : (
+        <div className="w-6" />
+      )}
+
+      {/* TITLE */}
+      <h1 className="text-xl font-bold text-purple-700">
+        {title}
+      </h1>
+
+      {/* LOGOUT */}
+      <button
+        onClick={handleLogout}
+        className="text-sm text-red-500 font-medium"
+      >
+        Sign out
+      </button>
+    </div>
+  );
+}
+
+export default Header;
+
+
+function TaskToggle({ checked, onChange }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {/* TOGGLE */}
+      <label className="relative inline-flex items-center cursor-pointer">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onChange}
+          className="sr-only peer"
+        />
+
+        {/* TRACK */}
+        <div className="w-12 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-500 transition-colors duration-300"></div>
+
+        {/* KNOB */}
+        <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 peer-checked:translate-x-6"></div>
+      </label>
+
+      {/* LABEL */}
+      <span
+        className={`text-xs font-medium ${
+          checked ? "text-green-600" : "text-gray-500"
+        }`}
+      >
+        {checked ? "Completed" : "Todo"}
+      </span>
+    </div>
+  );
+}
+
+export default TaskToggle;
+
+pages :
+
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import AddTaskModal from "../components/AddTaskModal";
+import TaskToggle from "../components/TaskToggle";
+import Header from "../components/Header";
+import { testUpload } from "../services/testUpload";
+
+function Dashboard() {
+  const [tasks, setTasks] = useState([]);
+  const [user, setUser] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editTask, setEditTask] = useState(null);
+
+  const navigate = useNavigate();
+  const token = localStorage.getItem("token");
+
+  // 🔒 Fetch profile
+  const fetchProfile = async () => {
+    const res = await fetch("http://localhost:9000/api/user/profile", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setUser(data);
+  };
+
+  // 📋 Fetch tasks
+  const fetchTasks = async () => {
+    const res = await fetch("http://localhost:9000/api/todo", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setTasks(data);
+  };
+
+  // ➕ ADD TASK
+  const saveTask = async (task) => {
+    await fetch("http://localhost:9000/api/todo", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(task)
+    });
+
+    setShowForm(false);
+    fetchTasks();
+  };
+
+  // ✏️ UPDATE TASK
+  const updateTask = async (updatedData) => {
+    await fetch(`http://localhost:9000/api/todo/${editTask._id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(updatedData)
+    });
+
+    setEditTask(null);
+    fetchTasks();
+  };
+
+  // 🔁 TOGGLE TASK
+  const toggleTask = async (id) => {
+    await fetch(`http://localhost:9000/api/todo/complete/${id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    fetchTasks();
+  };
+
+  // 🗑 DELETE TASK
+  const deleteTask = async (id) => {
+    await fetch(`http://localhost:9000/api/todo/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    fetchTasks();
+  };
+
+  useEffect(() => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    fetchProfile();
+    fetchTasks();
+  }, []);
+
+  const completedCount = tasks.filter(t => t.isCompleted).length;
+  const visibleTasks = tasks.slice(0, 6);
+
+  return (
+    <div className="min-h-screen bg-gray-100 px-4 py-4 sm:px-6 sm:py-6">
+      {/* HEADER */}
+      <Header title="Timora" showBack={false} />
+
+      {/* GREETING */}
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-purple-700 break-words">
+          Good Morning, {user?.name || user?.email}
+        </h2>
+        <p className="text-gray-500 text-sm">
+          Let’s plan your day better
+        </p>
+      </div>
+
+      {/* STATS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-xl shadow">
+          <p className="text-sm text-gray-500">Total Tasks</p>
+          <h2 className="text-2xl font-bold text-purple-600">
+            {tasks.length}
+          </h2>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl shadow">
+          <p className="text-sm text-gray-500">Completed</p>
+          <h2 className="text-2xl font-bold text-green-600">
+            {completedCount}
+          </h2>
+        </div>
+      </div>
+
+      {/* ADD TASK */}
+      <button
+        onClick={() => setShowForm(true)}
+        className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold mb-6 hover:bg-purple-700"
+      >
+        + Add New Task
+      </button>
+
+      {/* ADD MODAL */}
+      {showForm && (
+        <AddTaskModal
+          onClose={() => setShowForm(false)}
+          onSave={saveTask}
+        />
+      )}
+
+      {/* EDIT MODAL */}
+      {editTask && (
+        <AddTaskModal
+          initialData={editTask}
+          onClose={() => setEditTask(null)}
+          onSave={updateTask}
+        />
+      )}
+      {/* TASK LIST HEADER */}
+<div className="flex justify-between items-center mb-4">
+  <h3 className="text-lg font-semibold">Today’s Tasks</h3>
+
+  {tasks.length > 6 && (
+    <button
+      onClick={() => navigate("/tasks")}
+      className="flex items-center gap-1 px-3 py-1.5 rounded-lg
+                 text-purple-700 bg-purple-100
+                 hover:bg-purple-200
+                 font-semibold text-sm"
+    >
+      View All
+      <span className="text-base">→</span>
+    </button>
+  )}
+</div>
+
+      {/* TASK LIST */}
+      <div className="space-y-3">
+        {visibleTasks.map(task => (
+          <div
+            key={task._id}
+            className="bg-white p-4 rounded-xl shadow flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3"
+          >
+            <p
+              className={`font-medium break-words ${
+                task.isCompleted ? "line-through text-gray-400" : ""
+              }`}
+            >
+              {task.title}
+            </p>
+
+            <div className="flex items-center justify-between sm:justify-end gap-3">
+              <TaskToggle
+                checked={task.isCompleted}
+                onChange={() => toggleTask(task._id)}
+              />
+
+              <button
+                onClick={() => setEditTask(task)}
+                className="text-blue-500 text-sm"
+              >
+                Edit
+              </button>
+
+              <button
+                onClick={() => deleteTask(task._id)}
+                className="text-red-500 text-sm"
+              >
+                Delete
+              </button>
+              <button
+  onClick={() => {
+    console.log("EDIT TASK:", task);
+    setEditTask(task);
+  }}
+>
+  Edit
+</button>
+
+            </div>
+            
+          </div>
+        ))}
+      </div>
+      <input
+  type="file"
+  onChange={(e) => testUpload(e.target.files[0])}
+/>
+
+    </div>
+  );
+}
+
+export default Dashboard;
+
+
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { loginUser } from "../services/authService";
+
+// Firebase
+import { signInWithPopup } from "firebase/auth";
+import { auth, googleProvider } from "../services/firebase";
+
+function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  // 🔐 Normal email/password login
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      const res = await loginUser(email, password);
+
+      if (res.token) {
+        localStorage.setItem("token", res.token);
+        navigate("/dashboard");
+      } else {
+        setError(res);
+      }
+    } catch (err) {
+      setError("Login failed");
+    }
+  };
+
+  // 🔥 Google login
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      const res = await fetch("http://localhost:9000/api/user/google-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: user.email,
+          name: user.displayName
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        navigate("/dashboard");
+      } else {
+        setError("Google login failed");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Google login failed");
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 rounded-xl shadow-md w-96">
+        <h2 className="text-2xl font-bold mb-6 text-center text-purple-600">
+          Login
+        </h2>
+
+        {error && (
+          <p className="text-red-500 text-sm mb-3 text-center">{error}</p>
+        )}
+
+        {/* Email / Password Login */}
+        <form onSubmit={handleLogin}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full mb-4 p-2 border rounded"
+            required
+          />
+
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full mb-4 p-2 border rounded"
+            required
+          />
+
+          <button
+            type="submit"
+            className="w-full bg-purple-600 text-white p-2 rounded hover:bg-purple-700"
+          >
+            Login
+          </button>
+        </form>
+
+        {/* Divider */}
+        <div className="flex items-center my-4">
+          <div className="flex-grow border-t"></div>
+          <span className="px-3 text-gray-400 text-sm">OR</span>
+          <div className="flex-grow border-t"></div>
+        </div>
+
+        {/* Google Login */}
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          className="w-full border p-2 rounded flex items-center justify-center gap-2 hover:bg-gray-50"
+        >
+          <img
+            src="https://www.svgrepo.com/show/475656/google-color.svg"
+            alt="google"
+            className="w-5 h-5"
+          />
+          Continue with Google
+        </button>
+
+        <p className="text-sm text-center mt-4">
+          Don’t have an account?{" "}
+          <Link to="/signup" className="text-purple-600 font-semibold">
+            Signup
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default Login;
+
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { signupUser } from "../services/authService";
+
+// Firebase
+import { signInWithPopup } from "firebase/auth";
+import { auth, googleProvider } from "../services/firebase";
+
+function Signup() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  // Email/password signup
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      const res = await signupUser(email, password);
+      if (res.token) {
+        localStorage.setItem("token", res.token);
+        navigate("/dashboard");
+      }
+    } catch {
+      setError("Signup failed");
+    }
+  };
+
+  // Google signup
+  const handleGoogleSignup = async () => {
+  try {
+    console.log("Popup opening...");
+    const result = await signInWithPopup(auth, googleProvider);
+    console.log("Popup success", result.user.email);
+
+    const res = await fetch("http://localhost:9000/api/user/google-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: result.user.email,
+        name: result.user.displayName
+      })
+    });
+
+    console.log("Backend response status:", res.status);
+
+    const data = await res.json();
+    console.log("Backend data:", data);
+
+    localStorage.setItem("token", data.token);
+    navigate("/dashboard");
+  } catch (err) {
+    console.error("Google signup error:", err);
+    setError("Google signup failed");
+  }
+};
+
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 rounded-xl shadow-md w-96">
+        <h2 className="text-2xl font-bold mb-6 text-center text-purple-600">
+          Create Account
+        </h2>
+
+        {error && (
+          <p className="text-red-500 text-sm mb-3 text-center">{error}</p>
+        )}
+
+        <form onSubmit={handleSignup}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full mb-4 p-2 border rounded"
+            required
+          />
+
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full mb-4 p-2 border rounded"
+            required
+          />
+
+          <button
+            type="submit"
+            className="w-full bg-purple-600 text-white p-2 rounded hover:bg-purple-700"
+          >
+            Sign Up
+          </button>
+        </form>
+
+        <div className="flex items-center my-4">
+          <div className="flex-grow border-t" />
+          <span className="px-3 text-gray-400 text-sm">OR</span>
+          <div className="flex-grow border-t" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignup}
+          className="w-full border p-2 rounded flex items-center justify-center gap-2 hover:bg-gray-50"
+        >
+          <img
+            src="https://www.svgrepo.com/show/475656/google-color.svg"
+            alt="google"
+            className="w-5 h-5"
+          />
+          Continue with Google
+        </button>
+
+        <p className="text-sm text-center mt-4">
+          Already have an account?{" "}
+          <Link to="/" className="text-purple-600 font-semibold">
+            Login
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default Signup;
+
+
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import TaskToggle from "../components/TaskToggle";
+
+function TaskDetails() {
+  const { id } = useParams();
+  const [task, setTask] = useState(null);
+  const token = localStorage.getItem("token");
+
+  const fetchTask = async () => {
+    const res = await fetch(`http://localhost:9000/api/todo/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setTask(data);
+  };
+
+  const toggleTask = async () => {
+    await fetch(`http://localhost:9000/api/todo/complete/${id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    fetchTask();
+  };
+
+  useEffect(() => {
+    fetchTask();
+  }, []);
+
+  if (!task) return null;
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="bg-white p-6 rounded-xl shadow">
+
+        <h2 className="text-2xl font-bold text-purple-700 mb-2">
+          {task.title}
+        </h2>
+
+        <p className="text-gray-600 mb-4">
+          {task.description || "No description"}
+        </p>
+
+        <TaskToggle checked={task.isCompleted} onChange={toggleTask} />
+
+        {/* AUDIO */}
+        {task.recordings?.length > 0 && (
+          <div className="mt-5">
+            <h4 className="font-semibold mb-2">Voice Notes</h4>
+            {task.recordings.map((rec, i) => (
+              <audio key={i} controls src={rec.fileUrl} className="w-full" />
+            ))}
+          </div>
+        )}
+
+        {/* FILES */}
+        {task.attachments?.length > 0 && (
+          <div className="mt-5">
+            <h4 className="font-semibold mb-2">Attachments</h4>
+            {task.attachments.map((file, i) => (
+              <a
+                key={i}
+                href={file.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="block text-purple-600 underline"
+              >
+                {file.fileName}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default TaskDetails;
+
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import TaskToggle from "../components/TaskToggle";
+
+function ViewAllTasks() {
+  const [tasks, setTasks] = useState([]);
+  const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+  const token = localStorage.getItem("token");
+
+  const fetchTasks = async () => {
+    const res = await fetch("http://localhost:9000/api/todo", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setTasks(data);
+  };
+
+  const toggleTask = async (id) => {
+    await fetch(`http://localhost:9000/api/todo/complete/${id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    fetchTasks();
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const filteredTasks = tasks.filter(task =>
+    task.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <h2 className="text-2xl font-bold text-purple-700 mb-4">
+        All Tasks
+      </h2>
+
+      {/* SEARCH */}
+      <input
+        type="text"
+        placeholder="Search tasks..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full p-3 rounded-xl border mb-5"
+      />
+
+      {filteredTasks.length === 0 ? (
+        <div className="bg-white p-6 rounded-xl text-center text-gray-500">
+          No tasks found
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredTasks.map(task => (
+            <div
+              key={task._id}
+              className="bg-white p-4 rounded-xl shadow flex justify-between items-center cursor-pointer"
+              onClick={() => navigate(`/tasks/${task._id}`)}
+            >
+              <p
+                className={`font-medium ${
+                  task.isCompleted ? "line-through text-gray-400" : ""
+                }`}
+              >
+                {task.title}
+              </p>
+
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleTask(task._id);
+                }}
+              >
+                <TaskToggle checked={task.isCompleted} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default ViewAllTasks;
+
+
+const BASE_URL = "http://localhost:9000/api";
+
+export const apiRequest = async (url, method, data) => {
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(`${BASE_URL}${url}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: token,
+    },
+    body: data ? JSON.stringify(data) : null,
+  });
+
+  return res.json();
+};
+
+import { apiRequest } from "./api";
+
+export const loginUser = (email, password) => {
+  return apiRequest("/user/login", "POST", { email, password });
+};
+
+export const signupUser = (email, password) => {
+  return apiRequest("/user/signup", "POST", { email, password });
+};
+
+
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getStorage } from "firebase/storage";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAWWku1k8o51orEvA3CKxeYm8uKBvy2uOs",
+  authDomain: "timora-48388.firebaseapp.com",
+  projectId: "timora-48388",
+  storageBucket: "timora-48388.firebasestorage.app",
+  messagingSenderId: "968928884911",
+  appId: "1:968928884911:web:3e7023dad4d8e15ba13c5a"
+};
+
+const app = initializeApp(firebaseConfig);
+
+// Auth (already working)
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+
+// Storage (new, now enabled)
+export const storage = getStorage(app);
+
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "./firebase";
+
+export const testUpload = async (file) => {
+  if (!file) return;
+
+  try {
+    const storageRef = ref(storage, `test/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+
+    console.log("✅ Uploaded successfully");
+    console.log("🔗 File URL:", url);
+  } catch (error) {
+    console.error("❌ Upload failed:", error);
+  }
+};
+
+
+import { apiRequest } from "./api";
+
+export const fetchProfile = () => {
+  return apiRequest("/user/profile", "GET");
+};
+
+
+
+
+
+
+
+
+backend:
+controllers:
+const Task = require("../models/Tasks");
+
+// Create task
+exports.createTask = async (req, res) => {
+  try {
+    const task = await Task.create({
+      title: req.body.title,
+      description: req.body.description || "",
+      userId: req.user.id,
+      date: new Date(),
+    });
+
+    res.status(201).json(task);
+  } catch (err) {
+    res.status(500).json("Error creating task");
+  }
+};
+
+// Get today's tasks
+exports.getTodayTasks = async (req, res) => {
+  try {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    const tasks = await Task.find({
+      userId: req.user.id,
+      date: { $gte: start, $lte: end },
+    });
+
+    res.status(200).json(tasks);
+  } catch (err) {
+    res.status(500).json("Failed to fetch tasks");
+  }
+};
+
+// Update task
+exports.UpdateData = async (req, res) => {
+  try {
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.id },
+      req.body,
+      { new: true }
+    );
+
+    res.json(task);
+  } catch (err) {
+    res.status(500).json("Update failed");
+  }
+};
+
+// Mark completed
+// Mark completed (TOGGLE)
+exports.MarkCompleted = async (req, res) => {
+  try {
+    const task = await Task.findOne({
+      _id: req.params.id,
+      userId: req.user.id
+    });
+
+    if (!task) {
+      return res.status(404).json("Task not found");
+    }
+
+    //  REAL TOGGLE
+    task.isCompleted = !task.isCompleted;
+
+    await task.save();
+
+    res.status(200).json(task);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json("Failed to toggle task");
+  }
+};
+
+
+// Delete task
+exports.DeleteData = async (req, res) => {
+  try {
+    await Task.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id,
+    });
+
+    res.json({ message: "Task deleted" });
+  } catch (err) {
+    res.status(500).json("Delete failed");
+  }
+};
+// Get single task (details page)
+exports.getTaskById = async (req, res) => {
+  try {
+    const task = await Task.findOne({
+      _id: req.params.id,
+      userId: req.user.id
+    });
+
+    if (!task) {
+      return res.status(404).json("Task not found");
+    }
+
+    res.status(200).json(task);
+  } catch (err) {
+    res.status(500).json("Failed to fetch task");
+  }
+};
+
+const userData = require("../models/Users");
+const jwt = require("jsonwebtoken");
+
+// 🔹 Get logged-in user profile
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await userData.findById(req.user.id).select("-password");
+
+    if (!user) {
+      return res.status(404).json("User not found");
+    }
+
+    res.status(200).json(user);
+  } catch (err) {
+    res.status(500).json("Failed to fetch profile");
+  }
+};
+
+// 🔹 Google Login
+exports.googleLogin = async (req, res) => {
+  try {
+    const { email, name } = req.body;
+
+    let user = await userData.findOne({ email });
+
+    if (!user) {
+      user = await userData.create({
+        email,
+        name,
+        authType: "google"
+      });
+    }
+
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.status(200).json({
+      message: "Google login success",
+      token
+    });
+  } catch (err) {
+    res.status(500).json("Google login failed");
+  }
+};
+
+// 🔹 Email/Password Login
+exports.CheckLogin = async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const result = await userData.findOne({ email });
+
+    if (!result) {
+      return res.status(404).json("User not found. Please sign up");
+    }
+
+    if (password !== result.password) {
+      return res.status(401).json("Invalid credentials");
+    }
+
+    const token = jwt.sign(
+      { id: result._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.status(200).json({
+      message: "Login successful",
+      token
+    });
+  } catch (err) {
+    res.status(500).json("Login error");
+  }
+};
+
+// 🔹 Signup
+exports.Signup = async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const check = await userData.findOne({ email });
+
+    if (check) {
+      return res.status(409).json("User already exists");
+    }
+
+    await userData.create({ email, password });
+
+    res.status(201).json("User created successfully");
+  } catch (err) {
+    res.status(500).json("Signup failed");
+  }
+};
+
+const jwt = require("jsonwebtoken");
+
+const auth = (req, res, next) => {
+  const token = req.headers.authorization;
+
+  if (!token) {
+    return res.status(401).json("Access denied. No token provided");
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // { id: userId }
+    next();
+  } catch (err) {
+    return res.status(401).json("Invalid token");
+  }
+};
+
+module.exports = auth;
+
+const jwt = require("jsonwebtoken");
+
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json("No token provided");
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // { id: userId }
+    next();
+  } catch (err) {
+    return res.status(401).json("Invalid token");
+  }
+};
+
+module.exports = authMiddleware;
+
+
+
+const multer = require("multer");
+const path = require("path");
+
+// ---------- STORAGE CONFIG ----------
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (file.fieldname === "audio") {
+      cb(null, "uploads/audio");
+    } else {
+      cb(null, "uploads/files");
+    }
+  },
+  filename: (req, file, cb) => {
+    const uniqueName =
+      Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueName + path.extname(file.originalname));
+  }
+});
+
+// ---------- FILE FILTER (basic safety) ----------
+const fileFilter = (req, file, cb) => {
+  cb(null, true); // allow all for now
+};
+
+// ---------- MULTER INSTANCE ----------
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50 MB max
+  }
+});
+
+module.exports = upload;
+
+
+models:
+const mongoose = require("mongoose");
+
+const todoSchema = new mongoose.Schema(
+  {
+    //  Task title (required)
+    title: {
+      type: String,
+      required: true
+    },
+
+    //  Optional description
+    description: {
+      type: String
+    },
+
+    //  The day this task belongs to (always today's date)
+    date: {
+      type: Date,
+      required: true,
+      default: () => new Date()
+    },
+
+    //  Did the user finish this task today?
+    isCompleted: {
+      type: Boolean,
+      default: false
+    },
+
+    //  Who owns this task
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    },
+
+    //  PDFs, images, Word files, etc
+    attachments: [
+      {
+        fileName: String,
+        fileUrl: String,
+        fileType: String
+      }
+    ],
+
+    //  Voice & video recordings (from MediaRecorder)
+    recordings: [
+      {
+        type: {
+          type: String,
+          enum: ["audio", "video"]
+        },
+        fileUrl: String,
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ]
+  },
+  {
+    timestamps: true
+  }
+);
+
+module.exports = mongoose.model("Tasks", todoSchema);
+
+
+const mongoose = require("mongoose");
+
+const Users=mongoose.Schema({
+    email:{
+        type:String,
+        required:true
+    },
+    password:{
+         type:String,
+        required:true
+    }
+});
+module.exports= mongoose.model("users",Users);
+
+const express = require("express");
+const router = express.Router();
+
+const auth = require("../middleware/authMiddleware");
+const TaskController = require("../controllers/TasksController");
+
+// Create a new task
+router.post("/", auth, TaskController.createTask);
+
+// Get today's tasks
+router.get("/", auth, TaskController.getTodayTasks);
+
+// Update task title / description
+router.patch("/:id", auth, TaskController.UpdateData);
+
+// Mark task as completed
+router.patch("/complete/:id", auth, TaskController.MarkCompleted);
+
+// Delete task
+router.delete("/:id", auth, TaskController.DeleteData);
+
+// Get single task details
+router.get("/:id", auth, TaskController.getTaskById);
+
+module.exports = router;
+
+const express = require("express");
+const router = express.Router();
+
+const auth = require("../middleware/authMiddleware");
+const userController = require("../controllers/UserController");
+
+router.post("/login", userController.CheckLogin);
+router.post("/signup", userController.Signup);
+router.post("/google-login", userController.googleLogin);
+
+// 🔐 Protected route
+router.get("/profile", auth, userController.getProfile);
+
+module.exports = router;
+
+
+server.js
+const express = require("express");
+const app = express();
+const cors = require("cors");
+
+// Configure CORS to allow your frontend origin
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // allow all localhost ports
+      if (!origin || origin.startsWith("http://localhost")) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+app.use(express.json());
+const UserRoute = require("./routes/UserRoute");
+const TasksRoute = require("./routes/TasksRoute");
+const mongoose = require("mongoose");
+require("dotenv").config();
+
+mongoose.connect(process.env.DB_KEY)
+  .then(res => {
+    console.log("DB is successfully connected");
+  })
+  .catch(err => {
+    console.log("DB is not connected");
+  });
+
+app.use('/api/user', UserRoute);
+app.use('/api/todo', TasksRoute);
+app.use("/uploads", express.static("uploads"));
+
+app.use((req, res, next) => {
+  console.log("Request origin:", req.headers.origin);
+  next();
+});
+
+app.listen(9000, () => {
+  console.log("server started at port 9000");
+});

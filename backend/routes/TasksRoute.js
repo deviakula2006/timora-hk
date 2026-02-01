@@ -2,24 +2,47 @@ const express = require("express");
 const router = express.Router();
 
 const auth = require("../middleware/authMiddleware");
-const TaskController = require("../controllers/TasksController");
+const upload = require("../middleware/upload");
 
-// Create a new task
-router.post("/", auth, TaskController.createTask);
+const {
+  createTask,
+  getTodayTasks,
+  getTaskById,
+  UpdateData,
+  DeleteData,
+  MarkCompleted
+} = require("../controllers/TasksController");
 
-// Get today's tasks
-router.get("/", auth, TaskController.getTodayTasks);
+// CREATE
+router.post(
+  "/",
+  auth,
+  upload.fields([
+    { name: "files", maxCount: 10 },
+    { name: "audio", maxCount: 3 }
+  ]),
+  createTask
+);
 
-// Update task title / description
-router.patch("/:id", auth, TaskController.UpdateData);
+// READ
+router.get("/", auth, getTodayTasks);
+router.get("/:id", auth, getTaskById);
 
-// Mark task as completed
-router.patch("/complete/:id", auth, TaskController.MarkCompleted);
+// UPDATE
+router.patch(
+  "/:id",
+  auth,
+  upload.fields([
+    { name: "files", maxCount: 10 },
+    { name: "audio", maxCount: 3 }
+  ]),
+  UpdateData
+);
 
-// Delete task
-router.delete("/:id", auth, TaskController.DeleteData);
+// TOGGLE
+router.patch("/complete/:id", auth, MarkCompleted);
 
-// Get single task details
-router.get("/:id", auth, TaskController.getTaskById);
+// DELETE
+router.delete("/:id", auth, DeleteData);
 
 module.exports = router;
