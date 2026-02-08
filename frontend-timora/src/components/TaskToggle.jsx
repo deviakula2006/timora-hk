@@ -1,31 +1,24 @@
 function TaskToggle({ checked, onChange }) {
   return (
-    <div className="flex flex-col items-center gap-1">
-      {/* TOGGLE */}
-      <label className="relative inline-flex items-center cursor-pointer">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={onChange}
-          className="sr-only peer"
-        />
-
-        {/* TRACK */}
-        <div className="w-12 h-6 bg-gray-300 rounded-full peer peer-checked:bg-green-500 transition-colors duration-300"></div>
-
-        {/* KNOB */}
-        <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 peer-checked:translate-x-6"></div>
-      </label>
-
-      {/* LABEL */}
-      <span
-        className={`text-xs font-medium ${
-          checked ? "text-green-600" : "text-gray-500"
+    <label className="inline-flex items-center cursor-pointer">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="sr-only"
+      />
+      <div
+        className={`w-11 h-6 rounded-full transition-colors ${
+          checked ? "bg-purple-600" : "bg-gray-300"
         }`}
       >
-        {checked ? "Completed" : "Todo"}
-      </span>
-    </div>
+        <div
+          className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${
+            checked ? "translate-x-5" : "translate-x-1"
+          } mt-0.5`}
+        />
+      </div>
+    </label>
   );
 }
 

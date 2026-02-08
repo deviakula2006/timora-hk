@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import ViewAllTasks from "./pages/ViewAllTasks";
 import TaskDetails from "./pages/TaskDetails";
 
+
 function App() {
   return (
     <BrowserRouter>
@@ -13,7 +14,9 @@ function App() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/tasks" element={<ViewAllTasks />} />
-        <Route path="/tasks/:id" element={<TaskDetails />} />
+        
+        <Route path="/task/:id" element={<TaskDetails />} />
+
       </Routes>
     </BrowserRouter>
   );

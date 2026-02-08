@@ -16,15 +16,16 @@ exports.createTask = async (req, res) => {
       fileUrl: `/uploads/audio/${a.filename}`
     }));
 
-    const task = await Task.create({
-      title: req.body.title,
-      description: req.body.description || "",
-      isCompleted: req.body.isCompleted === "true",
-      userId: req.user.id || req.user._id,
-      date: new Date(),
-      attachments,
-      recordings
-    });
+   const task = await Task.create({
+  title: req.body.title,
+  description: req.body.description || "",
+  isCompleted:
+    req.body.isCompleted === true || req.body.isCompleted === "true",
+  userId: req.user._id || req.user.id,
+  attachments,
+  recordings
+});
+
 
     res.status(201).json(task);
   } catch (err) {
@@ -35,19 +36,58 @@ exports.createTask = async (req, res) => {
 
 /* GET */
 exports.getTodayTasks = async (req, res) => {
-  const tasks = await Task.find({ userId: req.user.id || req.user._id });
-  res.json(tasks);
+  try {
+    const now = new Date();
+
+    const start = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      0, 0, 0, 0
+    ));
+
+    const end = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      23, 59, 59, 999
+    ));
+
+    const tasks = await Task.find({
+      userId: req.user._id || req.user.id,
+      createdAt: { $gte: start, $lte: end }
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json(tasks);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json("Failed to fetch tasks");
+  }
 };
 
-/* GET ONE */
-exports.getTaskById = async (req, res) => {
-  const task = await Task.findOne({
-    _id: req.params.id,
-    userId: req.user.id || req.user._id
-  });
-  if (!task) return res.status(404).json("Not found");
-  res.json(task);
+
+// get single tasks 
+exports.getSingleTask = async (req, res) => {
+  try {
+    const task = await Task.findOne({
+      _id: req.params.id,
+      userId: req.user._id || req.user.id
+    });
+
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    res.json(task); 
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch task" });
+  }
 };
+
+
+
+
 
 /* UPDATE */
 exports.UpdateData = async (req, res) => {

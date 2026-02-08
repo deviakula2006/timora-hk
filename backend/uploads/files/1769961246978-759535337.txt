@@ -1,0 +1,813 @@
+server.js:
+
+const express = require("express");
+const app = express();
+const cors = require("cors");
+
+// Configure CORS to allow your frontend origin
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // allow all localhost ports
+      if (!origin || origin.startsWith("http://localhost")) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+app.use(express.json());
+const UserRoute = require("./routes/UserRoute");
+const TasksRoute = require("./routes/TasksRoute");
+const mongoose = require("mongoose");
+require("dotenv").config();
+
+mongoose.connect(process.env.DB_KEY)
+  .then(res => {
+    console.log("DB is successfully connected");
+  })
+  .catch(err => {
+    console.log("DB is not connected");
+  });
+
+app.use('/api/user', UserRoute);
+app.use('/api/todo', TasksRoute);
+app.use("/uploads", express.static("uploads"));
+
+app.use((req, res, next) => {
+  console.log("Request origin:", req.headers.origin);
+  next();
+});
+
+app.listen(9000, () => {
+  console.log("server started at port 9000");
+});
+
+
+
+
+
+
+upload.js:
+
+const express = require("express");
+const app = express();
+const cors = require("cors");
+
+// Configure CORS to allow your frontend origin
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // allow all localhost ports
+      if (!origin || origin.startsWith("http://localhost")) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+app.use(express.json());
+const UserRoute = require("./routes/UserRoute");
+const TasksRoute = require("./routes/TasksRoute");
+const mongoose = require("mongoose");
+require("dotenv").config();
+
+mongoose.connect(process.env.DB_KEY)
+  .then(res => {
+    console.log("DB is successfully connected");
+  })
+  .catch(err => {
+    console.log("DB is not connected");
+  });
+
+app.use('/api/user', UserRoute);
+app.use('/api/todo', TasksRoute);
+app.use("/uploads", express.static("uploads"));
+
+app.use((req, res, next) => {
+  console.log("Request origin:", req.headers.origin);
+  next();
+});
+
+app.listen(9000, () => {
+  console.log("server started at port 9000");
+});
+
+
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import AddTaskModal from "../components/AddTaskModal";
+import TaskToggle from "../components/TaskToggle";
+import Header from "../components/Header";
+import axios from "axios";
+
+function Dashboard() {
+  const [tasks, setTasks] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editTask, setEditTask] = useState(null);
+
+  const navigate = useNavigate();
+  const token = localStorage.getItem("token");
+
+  const fetchTasks = async () => {
+    const res = await fetch("http://localhost:9000/api/todo", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setTasks(await res.json());
+  };
+
+  useEffect(() => {
+    if (!token) return navigate("/");
+    fetchTasks();
+  }, []);
+
+  const saveTask = async (task) => {
+    const fd = new FormData();
+    fd.append("title", task.title);
+    fd.append("description", task.description || "");
+    fd.append("isCompleted", task.isCompleted);
+    task.files.forEach(f => fd.append("files", f));
+    if (task.audioBlob) fd.append("audio", task.audioBlob);
+
+    await fetch("http://localhost:9000/api/todo", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd
+    });
+
+    setShowForm(false);
+    fetchTasks();
+  };
+
+  const updateTask = async (data) => {
+    const fd = new FormData();
+    fd.append("title", data.title);
+    fd.append("description", data.description || "");
+    fd.append("isCompleted", data.isCompleted);
+    data.files.forEach(f => fd.append("files", f));
+    if (data.audioBlob) fd.append("audio", data.audioBlob);
+    fd.append("removedFiles", JSON.stringify(data.removedFiles));
+    fd.append("removedRecordings", JSON.stringify(data.removedRecordings));
+
+    await axios.patch(
+      `http://localhost:9000/api/todo/${editTask._id}`,
+      fd,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    setEditTask(null);
+    fetchTasks();
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 px-4 py-4">
+      <Header title="Timora" />
+      <button onClick={() => setShowForm(true)}>Add Task</button>
+
+      {showForm && <AddTaskModal onClose={() => setShowForm(false)} onSave={saveTask} />}
+      {editTask && <AddTaskModal initialData={editTask} onClose={() => setEditTask(null)} onSave={updateTask} />}
+
+      {tasks.map(t => (
+        <div key={t._id}>
+          <p>{t.title}</p>
+          <TaskToggle checked={t.isCompleted} />
+          <button onClick={() => setEditTask(t)}>Edit</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default Dashboard;
+
+
+
+
+
+main
+
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  
+    <App />
+  
+);
+
+
+
+
+
+addTaskModel:
+import { useEffect, useRef, useState } from "react";
+
+function AddTaskModal({ onClose, onSave, initialData }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const [files, setFiles] = useState([]);
+  const [existingFiles, setExistingFiles] = useState([]);
+  const [removedFiles, setRemovedFiles] = useState([]);
+
+  const [existingRecordings, setExistingRecordings] = useState([]);
+  const [removedRecordings, setRemovedRecordings] = useState([]);
+
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+
+  const [isCompleted, setIsCompleted] = useState(false);
+
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const timerRef = useRef(null);
+
+  /* ===== PREFILL ===== */
+  useEffect(() => {
+    if (initialData) {
+      setTitle(initialData.title);
+      setDescription(initialData.description || "");
+      setExistingFiles(initialData.attachments || []);
+      setExistingRecordings(initialData.recordings || []);
+      setIsCompleted(initialData.isCompleted || false);
+    }
+  }, [initialData]);
+
+  /* ===== FILES ===== */
+  const handleFileChange = (e) => {
+    const selected = Array.from(e.target.files);
+    if (existingFiles.length + files.length + selected.length > 10) {
+      alert("Maximum 10 files allowed");
+      return;
+    }
+    setFiles(prev => [...prev, ...selected]);
+  };
+
+  const removeNewFile = (i) => {
+    setFiles(prev => prev.filter((_, idx) => idx !== i));
+  };
+
+  const removeExistingFile = (i) => {
+    const removed = existingFiles[i];
+    setExistingFiles(prev => prev.filter((_, idx) => idx !== i));
+    setRemovedFiles(prev => [...prev, removed]);
+  };
+
+  /* ===== RECORDING ===== */
+  const startRecording = async () => {
+    if (existingRecordings.length + (audioBlob ? 1 : 0) >= 3) {
+      alert("Maximum 3 recordings allowed");
+      return;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    streamRef.current = stream;
+
+    const recorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = recorder;
+    audioChunksRef.current = [];
+
+    recorder.ondataavailable = e => audioChunksRef.current.push(e.data);
+    recorder.onstop = () => {
+      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      setAudioBlob(blob);
+    };
+
+    recorder.start();
+    setRecordingTime(0);
+    timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    setIsRecording(true);
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current.stop();
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    clearInterval(timerRef.current);
+    setIsRecording(false);
+  };
+
+  const removeExistingRecording = (i) => {
+    const removed = existingRecordings[i];
+    setExistingRecordings(prev => prev.filter((_, idx) => idx !== i));
+    setRemovedRecordings(prev => [...prev, removed]);
+  };
+
+  /* ===== SAVE ===== */
+  const handleSave = () => {
+    onSave({
+      title,
+      description,
+      files,
+      audioBlob,
+      removedFiles: removedFiles.filter(f => f?.fileUrl),
+      removedRecordings: removedRecordings.filter(r => r?.fileUrl),
+      isCompleted
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white w-full max-w-md rounded-xl p-6 shadow-lg">
+        <h2 className="text-lg font-semibold mb-4">
+          {initialData ? "Edit Task" : "Add Task"}
+        </h2>
+
+        <input className="w-full border p-2 rounded mb-3"
+          placeholder="Title"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+        />
+
+        <textarea className="w-full border p-2 rounded mb-3"
+          placeholder="Description"
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+        />
+
+        <p className="text-xs text-gray-500">Max 10 files</p>
+        <input type="file" multiple onChange={handleFileChange} />
+
+        {existingFiles.map((f, i) => (
+          <div key={i} className="flex justify-between bg-gray-100 p-2 mt-2 rounded">
+            <span>{f.fileName}</span>
+            <button onClick={() => removeExistingFile(i)}>Remove</button>
+          </div>
+        ))}
+
+        {files.map((f, i) => (
+          <div key={i} className="flex justify-between bg-gray-100 p-2 mt-2 rounded">
+            <span>{f.name}</span>
+            <button onClick={() => removeNewFile(i)}>Remove</button>
+          </div>
+        ))}
+
+        <p className="text-xs text-gray-500 mt-4">Max 3 recordings</p>
+
+        {!isRecording ? (
+          <button onClick={startRecording}>Start Recording</button>
+        ) : (
+          <button onClick={stopRecording}>Stop ({recordingTime}s)</button>
+        )}
+
+        {audioBlob && (
+          <div className="mt-2">
+            <audio controls src={URL.createObjectURL(audioBlob)} />
+            <button onClick={() => setAudioBlob(null)}>Remove</button>
+          </div>
+        )}
+
+        {existingRecordings.map((r, i) => (
+          <div key={i} className="mt-2">
+            <audio controls src={`http://localhost:9000${r.fileUrl}`} />
+            <button onClick={() => removeExistingRecording(i)}>Remove</button>
+          </div>
+        ))}
+
+        <div className="flex gap-4 my-4">
+          <label><input type="radio" checked={!isCompleted} onChange={() => setIsCompleted(false)} /> Todo</label>
+          <label><input type="radio" checked={isCompleted} onChange={() => setIsCompleted(true)} /> Completed</label>
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose}>Cancel</button>
+          <button onClick={handleSave}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default AddTaskModal;
+
+
+taskcontroller:
+
+const Task = require("../models/Tasks");
+const fs = require("fs");
+const path = require("path");
+
+/* ================= CREATE ================= */
+exports.createTask = async (req, res) => {
+  try {
+    const attachments = Array.isArray(req.files?.files)
+      ? req.files.files.map(file => ({
+          fileName: file.originalname,
+          fileUrl: `/uploads/files/${file.filename}`,
+          fileType: file.mimetype
+        }))
+      : [];
+
+    const recordings = Array.isArray(req.files?.audio)
+      ? req.files.audio.map(file => ({
+          type: "audio",
+          fileUrl: `/uploads/audio/${file.filename}`
+        }))
+      : [];
+
+    const task = await Task.create({
+      title: req.body.title,
+      description: req.body.description || "",
+      isCompleted: req.body.isCompleted === "true",
+      userId: req.user._id || req.user.id,
+      date: new Date(),
+      attachments,
+      recordings
+    });
+
+    res.status(201).json(task);
+  } catch (err) {
+    console.error("CREATE ERROR:", err);
+    res.status(500).json("Error creating task");
+  }
+};
+
+/* ================= GET TODAY ================= */
+exports.getTodayTasks = async (req, res) => {
+  try {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    const tasks = await Task.find({
+      userId: req.user._id || req.user.id,
+      date: { $gte: start, $lte: end }
+    });
+
+    res.json(tasks);
+  } catch (err) {
+    res.status(500).json("Failed to fetch tasks");
+  }
+};
+
+/* ================= GET ONE ================= */
+exports.getTaskById = async (req, res) => {
+  const task = await Task.findOne({
+    _id: req.params.id,
+    userId: req.user._id || req.user.id
+  });
+
+  if (!task) return res.status(404).json("Task not found");
+  res.json(task);
+};
+
+/* ================= UPDATE ================= */
+exports.UpdateData = async (req, res) => {
+  try {
+    const task = await Task.findOne({
+      _id: req.params.id,
+      userId: req.user._id || req.user.id
+    });
+
+    if (!task) return res.status(404).json("Task not found");
+
+    task.title = req.body.title;
+    task.description = req.body.description || "";
+    task.isCompleted = req.body.isCompleted === "true";
+
+    const parse = v => {
+      if (!v) return [];
+      if (Array.isArray(v)) return v;
+      try { return JSON.parse(v); } catch { return []; }
+    };
+
+    const removedFiles = parse(req.body.removedFiles);
+    const removedRecordings = parse(req.body.removedRecordings);
+
+    removedFiles.forEach(f => {
+      if (!f?.fileUrl) return;
+      const p = path.join(__dirname, "..", f.fileUrl);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    });
+
+    removedRecordings.forEach(r => {
+      if (!r?.fileUrl) return;
+      const p = path.join(__dirname, "..", r.fileUrl);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    });
+
+    task.attachments = task.attachments.filter(
+      f => !removedFiles.some(r => r.fileUrl === f.fileUrl)
+    );
+
+    task.recordings = task.recordings.filter(
+      r => !removedRecordings.some(rem => rem.fileUrl === r.fileUrl)
+    );
+
+    if (Array.isArray(req.files?.files)) {
+      req.files.files.forEach(file => {
+        task.attachments.push({
+          fileName: file.originalname,
+          fileUrl: `/uploads/files/${file.filename}`,
+          fileType: file.mimetype
+        });
+      });
+    }
+
+    if (Array.isArray(req.files?.audio)) {
+      req.files.audio.forEach(file => {
+        task.recordings.push({
+          type: "audio",
+          fileUrl: `/uploads/audio/${file.filename}`
+        });
+      });
+    }
+
+    await task.save();
+    res.json(task);
+
+  } catch (err) {
+    console.error("UPDATE ERROR:", err);
+    res.status(500).json("Update failed");
+  }
+};
+
+/* ================= TOGGLE ================= */
+exports.MarkCompleted = async (req, res) => {
+  const task = await Task.findOne({
+    _id: req.params.id,
+    userId: req.user._id || req.user.id
+  });
+
+  if (!task) return res.status(404).json("Task not found");
+
+  task.isCompleted = !task.isCompleted;
+  await task.save();
+  res.json(task);
+};
+
+/* ================= DELETE ================= */
+exports.DeleteData = async (req, res) => {
+  await Task.findOneAndDelete({
+    _id: req.params.id,
+    userId: req.user._id || req.user.id
+  });
+
+  res.json({ message: "Task deleted" });
+};
+
+
+authmiddleware:
+const jwt = require("jsonwebtoken");
+
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json("No token provided");
+  }
+
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.split(" ")[1]
+    : authHeader;
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // 🔴 STEP 1 (ONLY THIS LINE)
+    console.log("AUTH USER =>", decoded);
+
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json("Invalid token");
+  }
+};
+
+module.exports = authMiddleware;
+
+
+
+taskroute:
+
+
+const express = require("express");
+const router = express.Router();
+
+const auth = require("../middleware/auth");
+
+const {
+  createTask,
+  getTodayTasks,
+  UpdateData,
+  DeleteData,
+  MarkCompleted,
+  getTaskById
+} = require("../controllers/TasksController");
+
+/* CREATE */
+router.post("/", auth, createTask);
+
+/* READ */
+router.get("/", auth, getTodayTasks);
+router.get("/:id", auth, getTaskById);
+
+/* UPDATE */
+router.patch("/:id", auth, UpdateData);
+router.patch("/complete/:id", auth, MarkCompleted);
+
+/* DELETE */
+router.delete("/:id", auth, DeleteData);
+
+module.exports = router;
+
+
+
+add taskmodal:
+import { useEffect, useRef, useState } from "react";
+
+function AddTaskModal({ onClose, onSave, initialData }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const [files, setFiles] = useState([]);
+  const [existingFiles, setExistingFiles] = useState([]);
+  const [removedFiles, setRemovedFiles] = useState([]);
+
+  const [existingRecordings, setExistingRecordings] = useState([]);
+  const [removedRecordings, setRemovedRecordings] = useState([]);
+
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+
+  const [isCompleted, setIsCompleted] = useState(false);
+
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const timerRef = useRef(null);
+
+  /* ===== PREFILL ===== */
+  useEffect(() => {
+    if (initialData) {
+      setTitle(initialData.title);
+      setDescription(initialData.description || "");
+      setExistingFiles(initialData.attachments || []);
+      setExistingRecordings(initialData.recordings || []);
+      setIsCompleted(initialData.isCompleted || false);
+    }
+  }, [initialData]);
+
+  /* ===== FILES ===== */
+  const handleFileChange = (e) => {
+    const selected = Array.from(e.target.files);
+    if (existingFiles.length + files.length + selected.length > 10) {
+      alert("Maximum 10 files allowed");
+      return;
+    }
+    setFiles(prev => [...prev, ...selected]);
+  };
+
+  const removeNewFile = (i) => {
+    setFiles(prev => prev.filter((_, idx) => idx !== i));
+  };
+
+  const removeExistingFile = (i) => {
+    const removed = existingFiles[i];
+    setExistingFiles(prev => prev.filter((_, idx) => idx !== i));
+    setRemovedFiles(prev => [...prev, removed]);
+  };
+
+  /* ===== RECORDING ===== */
+  const startRecording = async () => {
+    if (existingRecordings.length + (audioBlob ? 1 : 0) >= 3) {
+      alert("Maximum 3 recordings allowed");
+      return;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    streamRef.current = stream;
+
+    const recorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = recorder;
+    audioChunksRef.current = [];
+
+    recorder.ondataavailable = e => audioChunksRef.current.push(e.data);
+    recorder.onstop = () => {
+      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      setAudioBlob(blob);
+    };
+
+    recorder.start();
+    setRecordingTime(0);
+    timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    setIsRecording(true);
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current.stop();
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    clearInterval(timerRef.current);
+    setIsRecording(false);
+  };
+
+  const removeExistingRecording = (i) => {
+    const removed = existingRecordings[i];
+    setExistingRecordings(prev => prev.filter((_, idx) => idx !== i));
+    setRemovedRecordings(prev => [...prev, removed]);
+  };
+
+  /* ===== SAVE ===== */
+  const handleSave = () => {
+    onSave({
+      title,
+      description,
+      files,
+      audioBlob,
+      removedFiles: removedFiles.filter(f => f?.fileUrl),
+      removedRecordings: removedRecordings.filter(r => r?.fileUrl),
+      isCompleted
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white w-full max-w-md rounded-xl p-6 shadow-lg">
+        <h2 className="text-lg font-semibold mb-4">
+          {initialData ? "Edit Task" : "Add Task"}
+        </h2>
+
+        <input className="w-full border p-2 rounded mb-3"
+          placeholder="Title"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+        />
+
+        <textarea className="w-full border p-2 rounded mb-3"
+          placeholder="Description"
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+        />
+
+        <p className="text-xs text-gray-500">Max 10 files</p>
+        <input type="file" multiple onChange={handleFileChange} />
+
+        {existingFiles.map((f, i) => (
+          <div key={i} className="flex justify-between bg-gray-100 p-2 mt-2 rounded">
+            <span>{f.fileName}</span>
+            <button onClick={() => removeExistingFile(i)}>Remove</button>
+          </div>
+        ))}
+
+        {files.map((f, i) => (
+          <div key={i} className="flex justify-between bg-gray-100 p-2 mt-2 rounded">
+            <span>{f.name}</span>
+            <button onClick={() => removeNewFile(i)}>Remove</button>
+          </div>
+        ))}
+
+        <p className="text-xs text-gray-500 mt-4">Max 3 recordings</p>
+
+        {!isRecording ? (
+          <button onClick={startRecording}>Start Recording</button>
+        ) : (
+          <button onClick={stopRecording}>Stop ({recordingTime}s)</button>
+        )}
+
+        {audioBlob && (
+          <div className="mt-2">
+            <audio controls src={URL.createObjectURL(audioBlob)} />
+            <button onClick={() => setAudioBlob(null)}>Remove</button>
+          </div>
+        )}
+
+        {existingRecordings.map((r, i) => (
+          <div key={i} className="mt-2">
+            <audio controls src={`http://localhost:9000${r.fileUrl}`} />
+            <button onClick={() => removeExistingRecording(i)}>Remove</button>
+          </div>
+        ))}
+
+        <div className="flex gap-4 my-4">
+          <label><input type="radio" checked={!isCompleted} onChange={() => setIsCompleted(false)} /> Todo</label>
+          <label><input type="radio" checked={isCompleted} onChange={() => setIsCompleted(true)} /> Completed</label>
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose}>Cancel</button>
+          <button onClick={handleSave}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default AddTaskModal;
+
+
+
+
+

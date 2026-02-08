@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
 function AddTaskModal({ onClose, onSave, initialData }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState(initialData?.title || "");
+const [description, setDescription] = useState(initialData?.description || "");
+const [isCompleted, setIsCompleted] = useState(
+  initialData?.isCompleted ?? false
+);
 
   const [files, setFiles] = useState([]);
   const [existingFiles, setExistingFiles] = useState([]);
@@ -15,28 +18,37 @@ function AddTaskModal({ onClose, onSave, initialData }) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
 
-  const [isCompleted, setIsCompleted] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null);
   const timerRef = useRef(null);
 
-  /* ===== PREFILL ===== */
+  /* ================= PREFILL ================= */
   useEffect(() => {
-    if (initialData) {
-      setTitle(initialData.title);
-      setDescription(initialData.description || "");
-      setExistingFiles(initialData.attachments || []);
-      setExistingRecordings(initialData.recordings || []);
-      setIsCompleted(initialData.isCompleted || false);
-    }
-  }, [initialData]);
+  if (initialData) {
+    setTitle(initialData.title || "");
+    setDescription(initialData.description || "");
+    setIsCompleted(initialData.isCompleted ?? false);
 
-  /* ===== FILES ===== */
+    setExistingFiles(initialData.attachments || []);
+    setExistingRecordings(initialData.recordings || []);
+
+    setFiles([]);
+    setAudioBlob(null);
+    setRemovedFiles([]);
+    setRemovedRecordings([]);
+  }
+}, [initialData]);
+
+
+
+  /* ================= FILES ================= */
   const handleFileChange = (e) => {
     const selected = Array.from(e.target.files);
-    if (existingFiles.length + files.length + selected.length > 10) {
+    const total = existingFiles.length + files.length + selected.length;
+
+    if (total > 10) {
       alert("Maximum 10 files allowed");
       return;
     }
@@ -44,16 +56,19 @@ function AddTaskModal({ onClose, onSave, initialData }) {
   };
 
   const removeNewFile = (i) => {
-    setFiles(prev => prev.filter((_, idx) => idx !== i));
+    const copy = [...files];
+    copy.splice(i, 1);
+    setFiles(copy);
   };
 
   const removeExistingFile = (i) => {
-    const removed = existingFiles[i];
-    setExistingFiles(prev => prev.filter((_, idx) => idx !== i));
+    const copy = [...existingFiles];
+    const removed = copy.splice(i, 1)[0];
+    setExistingFiles(copy);
     setRemovedFiles(prev => [...prev, removed]);
   };
 
-  /* ===== RECORDING ===== */
+  /* ================= RECORDING ================= */
   const startRecording = async () => {
     if (existingRecordings.length + (audioBlob ? 1 : 0) >= 3) {
       alert("Maximum 3 recordings allowed");
@@ -67,7 +82,7 @@ function AddTaskModal({ onClose, onSave, initialData }) {
     mediaRecorderRef.current = recorder;
     audioChunksRef.current = [];
 
-    recorder.ondataavailable = e => audioChunksRef.current.push(e.data);
+    recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
     recorder.onstop = () => {
       const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
       setAudioBlob(blob);
@@ -75,7 +90,10 @@ function AddTaskModal({ onClose, onSave, initialData }) {
 
     recorder.start();
     setRecordingTime(0);
-    timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    timerRef.current = setInterval(() => {
+      setRecordingTime(t => t + 1);
+    }, 1000);
+
     setIsRecording(true);
   };
 
@@ -87,90 +105,126 @@ function AddTaskModal({ onClose, onSave, initialData }) {
   };
 
   const removeExistingRecording = (i) => {
-    const removed = existingRecordings[i];
-    setExistingRecordings(prev => prev.filter((_, idx) => idx !== i));
+    const copy = [...existingRecordings];
+    const removed = copy.splice(i, 1)[0];
+    setExistingRecordings(copy);
     setRemovedRecordings(prev => [...prev, removed]);
   };
 
-  /* ===== SAVE ===== */
+  /* ================= SAVE ================= */
   const handleSave = () => {
     onSave({
       title,
       description,
       files,
       audioBlob,
-      removedFiles: removedFiles.filter(f => f?.fileUrl),
-      removedRecordings: removedRecordings.filter(r => r?.fileUrl),
+      removedFiles,
+      removedRecordings,
       isCompleted
     });
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white w-full max-w-md rounded-xl p-6 shadow-lg">
-        <h2 className="text-lg font-semibold mb-4">
+      <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-xl">
+        <h2 className="text-xl font-semibold mb-5">
           {initialData ? "Edit Task" : "Add Task"}
         </h2>
 
-        <input className="w-full border p-2 rounded mb-3"
-          placeholder="Title"
+        {/* TITLE */}
+        <input
+          className="w-full border rounded-lg px-3 py-2 mb-3"
+          placeholder="Task title"
           value={title}
           onChange={e => setTitle(e.target.value)}
         />
 
-        <textarea className="w-full border p-2 rounded mb-3"
+        {/* DESCRIPTION */}
+        <textarea
+          className="w-full border rounded-lg px-3 py-2 mb-4"
           placeholder="Description"
+          rows={3}
           value={description}
           onChange={e => setDescription(e.target.value)}
         />
 
-        <p className="text-xs text-gray-500">Max 10 files</p>
-        <input type="file" multiple onChange={handleFileChange} />
+        {/* FILES */}
+        <div className="mb-4">
+          <p className="text-sm font-medium mb-1">Attachments (max 10)</p>
+          <input type="file" multiple onChange={handleFileChange} />
 
-        {existingFiles.map((f, i) => (
-          <div key={i} className="flex justify-between bg-gray-100 p-2 mt-2 rounded">
-            <span>{f.fileName}</span>
-            <button onClick={() => removeExistingFile(i)}>Remove</button>
-          </div>
-        ))}
+          {[...existingFiles].map((f, i) => (
+            <div key={i} className="flex justify-between items-center bg-gray-100 mt-2 px-3 py-2 rounded">
+              <span className="text-sm">{f.fileName}</span>
+              <button onClick={() => removeExistingFile(i)} className="text-red-500 text-sm">
+                Remove
+              </button>
+            </div>
+          ))}
 
-        {files.map((f, i) => (
-          <div key={i} className="flex justify-between bg-gray-100 p-2 mt-2 rounded">
-            <span>{f.name}</span>
-            <button onClick={() => removeNewFile(i)}>Remove</button>
-          </div>
-        ))}
-
-        <p className="text-xs text-gray-500 mt-4">Max 3 recordings</p>
-
-        {!isRecording ? (
-          <button onClick={startRecording}>Start Recording</button>
-        ) : (
-          <button onClick={stopRecording}>Stop ({recordingTime}s)</button>
-        )}
-
-        {audioBlob && (
-          <div className="mt-2">
-            <audio controls src={URL.createObjectURL(audioBlob)} />
-            <button onClick={() => setAudioBlob(null)}>Remove</button>
-          </div>
-        )}
-
-        {existingRecordings.map((r, i) => (
-          <div key={i} className="mt-2">
-            <audio controls src={`http://localhost:9000${r.fileUrl}`} />
-            <button onClick={() => removeExistingRecording(i)}>Remove</button>
-          </div>
-        ))}
-
-        <div className="flex gap-4 my-4">
-          <label><input type="radio" checked={!isCompleted} onChange={() => setIsCompleted(false)} /> Todo</label>
-          <label><input type="radio" checked={isCompleted} onChange={() => setIsCompleted(true)} /> Completed</label>
+          {files.map((f, i) => (
+            <div key={i} className="flex justify-between items-center bg-gray-100 mt-2 px-3 py-2 rounded">
+              <span className="text-sm">{f.name}</span>
+              <button onClick={() => removeNewFile(i)} className="text-red-500 text-sm">
+                Remove
+              </button>
+            </div>
+          ))}
         </div>
 
-        <div className="flex justify-end gap-3">
-          <button onClick={onClose}>Cancel</button>
-          <button onClick={handleSave}>Save</button>
+        {/* RECORDINGS */}
+        <div className="mb-4">
+          <p className="text-sm font-medium mb-2">Voice Notes (max 3)</p>
+
+          {!isRecording ? (
+            <button onClick={startRecording} className="bg-purple-600 text-white px-4 py-2 rounded">
+              Start Recording
+            </button>
+          ) : (
+            <button onClick={stopRecording} className="bg-red-500 text-white px-4 py-2 rounded">
+              Stop ({recordingTime}s)
+            </button>
+          )}
+
+          {audioBlob && (
+            <div className="flex justify-between items-center bg-gray-100 mt-2 p-2 rounded">
+              <audio controls src={URL.createObjectURL(audioBlob)} />
+              <button onClick={() => setAudioBlob(null)} className="text-red-500 text-sm">
+                Remove
+              </button>
+            </div>
+          )}
+
+          {existingRecordings.map((r, i) => (
+            <div key={i} className="flex justify-between items-center bg-gray-100 mt-2 p-2 rounded">
+              <audio controls src={`http://localhost:9000${r.fileUrl}`} />
+              <button onClick={() => removeExistingRecording(i)} className="text-red-500 text-sm">
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* STATUS */}
+        <div className="flex gap-6 mb-6">
+          <label className="flex items-center gap-2">
+            <input type="radio" checked={!isCompleted} onChange={() => setIsCompleted(false)} />
+            Todo
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" checked={isCompleted} onChange={() => setIsCompleted(true)} />
+            Completed
+          </label>
+        </div>
+
+        {/* ACTIONS */}
+        <div className="flex justify-end gap-4">
+          <button onClick={onClose} className="text-gray-600">
+            Cancel
+          </button>
+          <button onClick={handleSave} className="bg-purple-600 text-white px-5 py-2 rounded">
+            Save
+          </button>
         </div>
       </div>
     </div>
