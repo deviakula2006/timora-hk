@@ -1,0 +1,61 @@
+div.calender-date {
+  width: 200px;
+  font-size: 12px;
+  font-family: lucida grande, lucida;
+  display: none;
+  position: absolute;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 999999999;
+}
+div.calender-date.active {
+  display: block;
+}
+div.calender-date table {
+  width: 100%;
+  background-color: #222;
+  border-radius: 5px;
+  border-collapse: collapse;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+div.calender-date table tr.date-header th {
+  text-align: center;
+}
+div.calender-date table th.date-month-year {
+  color: yellow;
+}
+div.calender-date table tr.date-daysofweek th {
+  color: #aaa;
+}
+div.calender-date table tbody tr:hover,
+div.calender-date table tbody td.hover {
+  background-color: #333;
+}
+div.calender-date table td,
+div.calender-date table th {
+  color: #fff;
+  font-weight: bold;
+  text-align: right;
+  border: 0;
+  padding: 5px;
+}
+div.calender-date table tbody td,
+div.calender-date tr.date-daysofweek th {
+  border-right: 2px groove #444;
+}
+div.calender-date table tbody td:last-child,
+div.calender-date table tr.date-daysofweek th:last-child {
+  border-right-width: 0;
+}
+div.calender-date table td.today {
+  color: yellow;
+}
+div.calender-date table .inactive {
+  color: #555;
+}
+div.calender-date .date-month-previous {
+  transform: rotate(180deg);
+  -webkit-transform: rotate(180deg);
+  -moz-transform: rotate(180deg);
+}

@@ -113,10 +113,11 @@ function Login() {
           className="w-full border p-2 rounded flex items-center justify-center gap-2 hover:bg-gray-50"
         >
           <img
-            src="https://www.svgrepo.com/show/475656/google-color.svg"
-            alt="google"
-            className="w-5 h-5"
-          />
+           src="https://developers.google.com/identity/images/g-logo.png"
+             alt="google"
+                  className="w-5 h-5"
+           />
+
           Continue with Google
         </button>
 
