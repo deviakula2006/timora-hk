@@ -1,6 +1,7 @@
 const Task = require("../models/Tasks");
 const fs = require("fs");
 const path = require("path");
+const mongoose = require("mongoose");
 
 /* CREATE */
 exports.createTask = async (req, res) => {
@@ -162,3 +163,20 @@ exports.DeleteData = async (req, res) => {
   await Task.findByIdAndDelete(req.params.id);
   res.json({ message: "Deleted" });
 };
+
+
+exports.getAllTasks = async (req, res) => {
+  try {
+    const tasks = await Task.find({
+      userId: req.user._id || req.user.id
+    }).sort({ createdAt: -1 });
+
+    res.json(tasks);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json("Error fetching tasks");
+  }
+};
+
+

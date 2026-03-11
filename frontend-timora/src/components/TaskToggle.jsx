@@ -1,24 +1,44 @@
 function TaskToggle({ checked, onChange }) {
   return (
-    <label className="inline-flex items-center cursor-pointer">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="sr-only"
-      />
+    <div
+      onClick={onChange}
+      className={`
+        relative w-16 h-8
+        flex items-center
+        rounded-full cursor-pointer
+        transition-all duration-300
+
+        ${
+          checked
+            ? "bg-gradient-to-r from-purple-500 to-indigo-500"
+            : "bg-gray-300"
+        }
+      `}
+    >
+
+      {/* Glow */}
+      {checked && (
+        <div className="
+          absolute inset-0
+          rounded-full
+          bg-purple-400
+          opacity-30
+          blur-xl
+        " />
+      )}
+
+      {/* Knob */}
       <div
-        className={`w-11 h-6 rounded-full transition-colors ${
-          checked ? "bg-purple-600" : "bg-gray-300"
-        }`}
-      >
-        <div
-          className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${
-            checked ? "translate-x-5" : "translate-x-1"
-          } mt-0.5`}
-        />
-      </div>
-    </label>
+        className={`
+          absolute top-1 left-1
+          w-6 h-6 bg-white
+          rounded-full shadow-md
+          transition-all duration-300
+          ${checked ? "translate-x-8" : ""}
+        `}
+      />
+
+    </div>
   );
 }
 

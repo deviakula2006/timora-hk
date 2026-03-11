@@ -5,6 +5,10 @@ const TaskController = require("../controllers/TasksController");
 const auth = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
 
+// GET ALL TASKS (FOR CALENDAR)
+router.get("/",auth, TaskController.getAllTasks);
+
+// GET TODAY TASKS
 // CREATE TASK
 router.post(
   "/",
@@ -16,7 +20,6 @@ router.post(
   TaskController.createTask
 );
 
-// GET TODAY TASKS
 router.get("/today", auth, TaskController.getTodayTasks);
 
 // GET SINGLE TASK

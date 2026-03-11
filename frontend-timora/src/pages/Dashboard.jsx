@@ -1,8 +1,8 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AddTaskModal from "../components/AddTaskModal";
 import TaskToggle from "../components/TaskToggle";
-import Header from "../components/Header";
 import axios from "axios";
 
 function Dashboard() {
@@ -70,16 +70,6 @@ function Dashboard() {
     data.files.forEach(file => formData.append("files", file));
     if (data.audioBlob) formData.append("audio", data.audioBlob);
 
-    if (data.removedFiles.length) {
-      formData.append("removedFiles", JSON.stringify(data.removedFiles));
-    }
-    if (data.removedRecordings.length) {
-      formData.append(
-        "removedRecordings",
-        JSON.stringify(data.removedRecordings)
-      );
-    }
-
     await axios.patch(
       `http://localhost:9000/api/todo/${editTask._id}`,
       formData,
@@ -108,23 +98,186 @@ function Dashboard() {
     fetchTasks();
   };
 
-  /* ================= UI ================= */
   const visibleTasks = showAll ? tasks : tasks.slice(0, 6);
 
+  /* ================= UI ================= */
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-4">
-      <Header title="Timora" showBack={false} />
+    <div className="
+      min-h-screen
+      bg-gradient-to-br
+      from-purple-50
+      via-indigo-50
+      to-pink-50
+      p-6
+    ">
 
-      <button
-        onClick={() => {
-          setEditTask(null);
-          setShowForm(true);
-        }}
-        className="w-full bg-purple-600 text-white py-3 rounded-xl mb-6 text-lg font-medium"
-      >
-        + Add New Task
-      </button>
+      {/* ===== GREETING CARD ===== */}
+      <div className="
+        relative overflow-hidden
+        bg-gradient-to-r from-purple-400 to-indigo-300
+        text-white rounded-3xl p-6 mb-8
+        shadow-[0_8px_40px_rgba(139,92,246,0.35)]
+      ">
 
+        {/* Cloud BG */}
+        <img
+          src="/ui/cloud.svg"
+          className="absolute inset-0 w-full h-full object-cover opacity-30"
+        />
+
+        <div className="relative z-10 flex justify-between items-center">
+
+          <div>
+            <h2 className="text-2xl font-semibold">
+              Hello 👋
+            </h2>
+
+            <p className="text-sm opacity-90 mt-1">
+              Today : {new Date().toDateString()}
+            </p>
+
+            <p className="text-sm opacity-80 mt-2">
+              Organize your tasks efficiently and boost productivity.
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              setEditTask(null);
+              setShowForm(true);
+            }}
+            className="
+              bg-white text-purple-600 px-5 py-2
+              rounded-lg font-medium
+              shadow-md hover:shadow-lg
+              hover:-translate-y-0.5
+              transition
+            "
+          >
+            + Add Task
+          </button>
+
+        </div>
+      </div>
+
+      {/* ===== SUMMARY CARDS ===== */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+
+        {/* Completed */}
+        <div
+          onClick={() => navigate("/completed")}
+          className="
+            relative overflow-hidden
+            bg-gradient-to-r from-green-300 to-emerald-200
+            p-5 rounded-2xl cursor-pointer
+
+            shadow-[0_4px_20px_rgba(0,0,0,0.06)]
+            hover:-translate-y-1
+            transition
+          "
+        >
+
+          {/* Yellow Radiance */}
+          <div className="
+            absolute -top-10 -right-10
+            w-40 h-40
+            bg-yellow-300 opacity-30
+            blur-3xl rounded-full
+          " />
+
+          <img
+            src="/ui/wave.svg"
+            className="absolute bottom-0 w-full opacity-40"
+          />
+
+          <div className="relative z-10">
+            <p className="text-sm text-gray-700">
+              Completed Tasks
+            </p>
+
+            <h3 className="text-2xl font-bold text-gray-900">
+              {tasks.filter(t => t.isCompleted).length}
+            </h3>
+          </div>
+        </div>
+
+        {/* Todo */}
+        <div
+          onClick={() => navigate("/todo")}
+          className="
+            relative overflow-hidden
+            bg-gradient-to-r from-blue-300 to-indigo-200
+            p-5 rounded-2xl cursor-pointer
+
+            shadow-[0_4px_20px_rgba(0,0,0,0.06)]
+            hover:-translate-y-1
+            transition
+          "
+        >
+
+          <div className="
+            absolute -top-10 -right-10
+            w-40 h-40
+            bg-yellow-200 opacity-25
+            blur-3xl rounded-full
+          " />
+
+          <img
+            src="/ui/wave.svg"
+            className="absolute bottom-0 w-full opacity-40"
+          />
+
+          <div className="relative z-10">
+            <p className="text-sm text-gray-700">
+              Todo Tasks
+            </p>
+
+            <h3 className="text-2xl font-bold text-gray-900">
+              {tasks.filter(t => !t.isCompleted).length}
+            </h3>
+          </div>
+        </div>
+
+        {/* All */}
+        <div
+          onClick={() => navigate("/tasks")}
+          className="
+            relative overflow-hidden
+            bg-gradient-to-r from-purple-300 to-pink-200
+            p-5 rounded-2xl cursor-pointer
+
+            shadow-[0_4px_20px_rgba(0,0,0,0.06)]
+            hover:-translate-y-1
+            transition
+          "
+        >
+
+          <div className="
+            absolute -top-10 -right-10
+            w-40 h-40
+            bg-yellow-200 opacity-25
+            blur-3xl rounded-full
+          " />
+
+          <img
+            src="/ui/wave.svg"
+            className="absolute bottom-0 w-full opacity-40"
+          />
+
+          <div className="relative z-10">
+            <p className="text-sm text-gray-700">
+              All Tasks
+            </p>
+
+            <h3 className="text-2xl font-bold text-gray-900">
+              {tasks.length}
+            </h3>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ===== MODALS ===== */}
       {showForm && !editTask && (
         <AddTaskModal onClose={() => setShowForm(false)} onSave={saveTask} />
       )}
@@ -136,91 +289,163 @@ function Dashboard() {
           onSave={updateTask}
         />
       )}
+{/* ===== EMPTY OR TASK LIST ===== */}
 
-      {visibleTasks.map(task => (
+{tasks.length === 0 ? (
+
+  /* ===== EMPTY STATE ===== */
+  <div className="flex flex-col items-center justify-center mt-20 text-center">
+
+    {/* Emoji */}
+    <div className="text-7xl animate-bounce">
+      🎯
+    </div>
+
+    {/* Text */}
+    <h2 className="text-xl font-semibold text-gray-800 mt-4">
+      No tasks yet
+    </h2>
+
+    <p className="text-gray-600 mt-1">
+      Set your goals & start your day
+    </p>
+
+    {/* Same Add Task functionality */}
+    <button
+      onClick={() => {
+        setEditTask(null);
+        setShowForm(true);
+      }}
+      className="
+        mt-6 px-6 py-2
+        bg-purple-500 text-white
+        rounded-xl font-medium
+        shadow hover:shadow-lg
+        transition
+      "
+    >
+      + Create First Task
+    </button>
+
+  </div>
+
+) : (
+
+  /* ===== TASK LIST ===== */
+  visibleTasks.map(task => (
+
+    <div
+      key={task._id}
+      onClick={() => navigate(`/task/${task._id}`)}
+      className="
+        relative overflow-hidden
+        rounded-2xl p-5 mb-6
+        bg-white/70 backdrop-blur-md
+        border border-purple-100
+        shadow-[0_4px_20px_rgba(139,92,246,0.08)]
+        hover:shadow-[0_12px_40px_rgba(139,92,246,0.25)]
+        hover:-translate-y-1
+        hover:bg-white
+        transition-all duration-300
+        cursor-pointer
+      "
+    >
+
+      {/* TOP ROW */}
+      <div className="flex justify-between items-start gap-4">
+
+        <div className="flex-1 min-w-0">
+
+          <h3
+            className={`text-lg font-semibold truncate ${
+              task.isCompleted
+                ? "line-through text-gray-400"
+                : "text-gray-800"
+            }`}
+          >
+            {task.title}
+          </h3>
+
+          {task.description && (
+            <p className="text-sm text-black-1000 mt-1 max-w-md truncate">
+              {task.description}
+            </p>
+          )}
+
+        </div>
+
         <div
-          key={task._id}
-          onClick={() => navigate(`/task/${task._id}`)}
-          className="bg-white rounded-2xl shadow-sm px-6 py-5 mb-4
-                     cursor-pointer hover:shadow-md transition"
+          className="flex items-center gap-3 shrink-0"
+          onClick={(e) => e.stopPropagation()}
         >
-          {/* TITLE + STATUS */}
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p
-                className={`text-lg font-semibold ${
-                  task.isCompleted ? "line-through text-gray-400" : ""
-                }`}
-              >
-                {task.title}
-              </p>
 
-              {task.description && (
-                <p className="text-sm text-gray-500 mt-1">
-                  {task.description}
-                </p>
-              )}
-            </div>
+          <TaskToggle
+            checked={task.isCompleted}
+            onChange={() => toggleTask(task._id)}
+          />
 
-            <span
-              className={`text-xs px-3 py-1 rounded-full font-medium ${
+          <span
+            className={`
+              text-xs px-3 py-1 rounded-full font-medium
+              ${
                 task.isCompleted
                   ? "bg-green-100 text-green-700"
-                  : "bg-gray-200 text-gray-700"
-              }`}
-            >
-              {task.isCompleted ? "Completed" : "To-Do"}
-            </span>
-          </div>
-
-          {/* ACTIONS */}
-          <div
-            className="flex items-center justify-center gap-6 mt-2"
-            onClick={(e) => e.stopPropagation()}
+                  : "bg-yellow-100 text-yellow-700"
+              }
+            `}
           >
-            {/* TOGGLE */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">To-Do</span>
-              <TaskToggle
-                checked={task.isCompleted}
-                onChange={() => toggleTask(task._id)}
-              />
-              <span className="text-xs text-gray-500">Done</span>
-            </div>
+            {task.isCompleted ? "Completed" : "To-Do"}
+          </span>
 
-            {/* EDIT */}
-            <button
-              onClick={() => handleEdit(task._id)}
-              className="px-4 py-1.5 rounded-lg bg-blue-100
-                         text-blue-700 text-sm font-medium hover:bg-blue-200"
-            >
-              Edit
-            </button>
-
-            {/* DELETE */}
-            <button
-              onClick={() => deleteTask(task._id)}
-              className="px-4 py-1.5 rounded-lg bg-red-100
-                         text-red-700 text-sm font-medium hover:bg-red-200"
-            >
-              Delete
-            </button>
-          </div>
         </div>
-      ))}
 
-      {/* VIEW ALL */}
-      {tasks.length > 6 && !showAll && (
-       <button
-  onClick={() => navigate("/tasks")}
-  className="w-full mt-4 text-purple-600 font-medium"
->
-  View All Tasks →
-</button>
+      </div>
 
-      )}
+      <div className="border-t border-purple-100 my-4" />
+
+      {/* ACTIONS */}
+      <div
+        className="flex justify-end gap-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+
+        {/* Edit */}
+        <div
+          onClick={() => handleEdit(task._id)}
+          className="flex flex-col items-center cursor-pointer"
+        >
+          ✏️
+          <span className="text-xs font-semibold text-black">
+            Edit
+          </span>
+        </div>
+
+        {/* Delete */}
+        <div
+          onClick={() => deleteTask(task._id)}
+          className="flex flex-col items-center cursor-pointer"
+        >
+          🗑️
+          <span className="text-xs font-semibold text-black">
+            Delete
+          </span>
+        </div>
+
+      </div>
+
+    </div>
+
+  ))
+
+)}
+
+
+
+
+      
+
     </div>
   );
 }
 
-export default Dashboard;
+export default Dashboard; 
